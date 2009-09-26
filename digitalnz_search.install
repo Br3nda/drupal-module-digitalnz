@@ -1,0 +1,13 @@
+<?php
+// $Id: digitalnz_search.install,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+/**
+ * @file
+ * Uninstall variables used by DigitalNZ Search module.
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function digitalnz_search_uninstall() {
+  variable_del('digitalnz_search_rows');
+}

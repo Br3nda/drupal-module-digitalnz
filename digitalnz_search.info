@@ -1,0 +1,7 @@
+; $Id: digitalnz_search.info,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+name = DigitalNZ Search
+description = Search metadata via DigitalNZ API.
+package = Search
+dependencies[] = search
+dependencies[] = digitalnz_api
+core = 6.x

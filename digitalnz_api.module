@@ -1,0 +1,140 @@
+<?php
+// $Id: digitalnz_api.module,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+/**
+ * @file
+ * Wrapper for the DigitalNZ API http://digitalnz.org
+ * Some aspects based on apachesolr module.
+ * This module was produced at the DigitalNZ-sponsored Christchurch Hackfest, 12 September 2009.
+ *
+ * @author digitalnz_api.module@huntdesign.co.nz
+ *
+ * @todo:
+ * - Keep key confidential, password screening? encryption?
+ * - Add support for other API calls: metadata, digitalnz contributors, custom search
+ * - Support faceted search.
+ */
+define('DIGITALNZ_SETTINGS_PATH', 'admin/settings/digitalnz-api');
+define('DIGITALNZ_SETTINGS_MENU_PATH', 'Administer > Site configuration > DigitalNZ API');
+define('DIGITALNZ_API_URL', 'http://api.digitalnz.org/records/v1');
+define('DIGITALNZ_API_KEY_URL', 'http://digitalnz.org/developer');
+
+/**
+ * Define callback for settings.
+ * Implementation of hook_menu().
+ */
+function digitalnz_api_menu() {
+
+  $items[DIGITALNZ_SETTINGS_PATH] = array(
+    'title' => t('DigitalNZ API'),
+    'description' => t('Configure API Key, etc.'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('digitalnz_api_admin_settings'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'digitalnz_api_admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Valid response formats are json, rss, xml. This module only uses XML at present.
+ */
+function digitalnz_api_do_search($search_text, $start = 0, $rows = 10, $sort = NULL, $direction = 'asc', $response_format = 'xml') {
+  $endpoint = variable_get('digitalnz_api_url', DIGITALNZ_API_URL);
+  $key = variable_get('digitalnz_api_key', '');
+  if (empty($key)) {
+    drupal_set_message(t('DigitalNZ API needs an API key. Settings are available at <strong class="drupal_link_admin_settings"><a href="@settings-path">@menu-path</a></strong>.', array(
+      '@menu-path' => DIGITALNZ_SETTINGS_MENU_PATH,
+      '@settings-path' => url(DIGITALNZ_SETTINGS_PATH),
+    )), 'error');
+    return;
+  }
+
+  $url = $endpoint .'.'. $response_format .'/?api_key='. $key .'&start='. $start .'&num_results='. $rows .'&search_text='. urlencode($search_text);
+
+  if (!empty($sort)) {
+    $url .= '&sort='. $sort;
+    $url .= '&direction='. $direction;
+  }
+
+  $response = drupal_http_request($url);
+
+  if ($response->code == 200) {
+    $data = $response->data;
+    $xml = new SimpleXMLElement($data);
+    return $xml;
+  }
+  else {
+    // Deal with HTTP errors
+    switch($response->code) {
+      case 401:
+        drupal_set_message(t('DigitalNZ returned @error. Check your settings at <strong class="drupal_link_admin_settings"><a href="@settings-path">@menu-path</a></strong></strong>.', array(
+          '@error' => 'HTTP '. $response->code .': '. $response->data,
+          '@menu-path' => DIGITALNZ_SETTINGS_MENU_PATH,
+          '@settings-path' => url(DIGITALNZ_SETTINGS_PATH),
+        )), 'error');
+        break;
+
+      default:
+        drupal_set_message(t('DigitalNZ returned @error', array(
+          '@error' => 'HTTP '. $response->code .': '. strip_tags($response->data),
+        )), 'error');
+        break;
+    }
+  }
+}
+
+/**
+ * Helper function to return timestamp from 2009-08-12T02:10:49.344Z
+ * Could be replaced > PHP5.3
+ *
+ * @param
+ *   $date Date string in XML Schema? format.
+ *
+ * @return
+ *   Timestamp
+ */
+function digitalnz_api_convert_date($date) {
+  $year = substr($date, 0, 4);
+  $month = substr($date, 5, 2);
+  $day = substr($date, 8, 2);
+
+  $hour = substr($date, 11, 2);
+  $minute = substr($date, 14, 2);
+  $second = substr($date, 17, 2);
+
+  return mktime($hour, $minute, $second, $month, $day, $year);
+}
+
+/**
+ * Semaphore that indicates whether a search has been done. Blocks use this
+ * later to decide whether they should load or not.
+ *
+ * @param $searched
+ *   A boolean indicating whether a search has been executed.
+ *
+ * @return
+ *   TRUE if a search has been executed.
+ *   FALSE otherwise.
+ */
+function digitalnz_has_searched($searched = NULL) {
+  static $_searched = FALSE;
+  if (is_bool($searched)) {
+    $_searched = $searched;
+  }
+  return $_searched;
+}
+
+/**
+ * It is important to hold on to the search response object for the duration of the
+ * page request so that we can use it for things like building facet blocks.
+ */
+function digitalnz_static_response_cache($response = NULL) {
+  static $_response;
+
+  if (!empty($response)) {
+    $_response = clone $response;
+  }
+  return $_response;
+}

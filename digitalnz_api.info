@@ -1,0 +1,5 @@
+; $Id: digitalnz_api.info,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+name = DigitalNZ API
+description = API wrapper for DigitalNZ API http://digitalnz.org.
+package = Search
+core = 6.x

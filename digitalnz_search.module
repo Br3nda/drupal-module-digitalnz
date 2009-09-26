@@ -1,0 +1,245 @@
+<?php
+// $Id: digitalnz_search.module,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+/**
+ * @file
+ * Offer search function via the DigitalNZ API http://digitalnz.org
+ * Some aspects based on apachesolr module.
+ * This module was produced at the DigitalNZ-sponsored Christchurch Hackfest, 12 September 2009.
+ *
+ * @author digitalnz_search.module@huntdesign.co.nz
+ *
+ * @todo:
+ * - Add search toggle for showing thumbnails
+ * - Use Imagecache to limit thumbnail size?
+ * - Support fielded search
+ * - Support facets
+ * - Need to indicate active direction similar to Solr search.
+ * - retain active search and direction on new search (to help refine existing results).
+ */
+
+/**
+ * Define callback for settings.
+ * Implementation of hook_menu().
+ */
+function digitalnz_search_menu() {
+
+  $items['admin/settings/digitalnz-search'] = array(
+    'title' => t('DigitalNZ Search'),
+    'description' => t('Configure search settings.'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('digitalnz_search_admin_settings'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'digitalnz_search_admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Define block for sorting search results.
+ * Implementation of hook_block().
+ */
+function digitalnz_search_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      // Sorting block
+      $blocks['sort'] = array('info' => t('DigitalNZ: Sorting'), 'cache' => BLOCK_CACHE_PER_PAGE);
+      // $blocks['type'] = array('info' => t('ApacheSolr Core: Filter by type'), 'cache' => BLOCK_CACHE_PER_PAGE);
+      return $blocks;
+
+    case 'view':
+      if (digitalnz_has_searched()) {
+        // Get the query and response. Without these no blocks make sense.
+        $response = digitalnz_static_response_cache();
+        if (empty($response)) {
+          return;
+        }
+
+        //$query = apachesolr_current_query();
+
+        // Get information needed by the rest of the blocks about limits.
+        //$facet_display_limits = variable_get('apachesolr_facet_query_limits', array());
+        switch ($delta) {
+          case 'sort':
+            $sorts = array(
+              'relevancy' => array('name' => t('Relevancy'), 'default' => 'asc'),
+              'title' => array('name' => t('Title'), 'default' => 'asc'),
+              'category' => array('name' => t('Type'), 'default' => 'asc'),
+              'content_partner' => array('name' => t('Provider'), 'default' => 'asc'),
+              'date' => array('name' => t('Date'), 'default' => 'desc'),
+            );
+
+            //$digitalnzsorts = array();
+            //$sort_parameter = isset($_GET['sort']) ? check_plain($_GET['sort']) : FALSE;
+            $sort_field = isset($_GET['sort']) ? check_plain($_GET['sort']) : FALSE;
+            //foreach (explode(',', $sort_parameter) as $digitalnzsort) {
+            //  $parts = explode(' ', $digitalnzsort);
+            //  if (!empty($parts[0]) && !empty($parts[1])) {
+            //    $digitalnzsorts[$parts[0]] = $parts[1];
+            //  }
+            //}
+
+            // Current query
+            // @todo: Default to none=relevancy
+            $arg0 = arg(0);
+            $arg1 = arg(1);
+            $arg2 = arg(2);
+
+            $sort_links = array();
+            /* $path = 'search/' . arg(1) . '/' . $query->get_query_basic();
+            $new_query = clone $query; */
+
+            // Toggle direction
+            $direction = isset($_GET['direction']) ? check_plain($_GET['direction']) : FALSE;
+
+            foreach ($sorts as $type => $sort) {
+              //$new_sort = isset($digitalnzsorts[$type]) ? $digitalnzsorts[$type] == 'asc' ? 'desc' : 'asc' : $sort['default'];
+              // If we have a sort, toggle direction
+              if ($sort_field == $type) {
+                if (isset($direction)) {
+                  $new_direction = ($direction == 'asc') ? 'desc' : 'asc';
+                }
+                else {
+                  // If we are using default direction, toggle it.
+                  $new_direction = $sort['default']; // == 'asc' ? 'desc' : 'asc';
+                }
+              }
+              else {
+                $new_direction = $sort['default'];
+              }
+
+              //$active = isset($solrsorts[$type]) || ($type == "relevancy" && !$solrsorts);
+
+              // @todo: Not sure if relevancy has direction
+              if ($type == 'relevancy') {
+                $options = array();
+              }
+              else {
+                $options = array('query' => array(
+                  'sort' => $type,
+                  'direction' => $new_direction,
+                ));
+              }
+              $sort_links[] = l($sort['name'], $arg0 .'/'. $arg1 .'/'. $arg2, $options);
+            } // foreach sorts
+
+            $item_list = theme('item_list', $sort_links);
+
+            // @todo: Reintroduce theming
+            $block['subject'] = t('Sort by');
+            $block['content'] = $item_list;
+            return $block;
+
+          default:
+            break;
+        }
+        break;
+      }
+      break;
+  }
+}
+
+
+/**
+ * Show DigitalNZ as search option.
+ * Implementation of hook_search().
+ */
+function digitalnz_search_search($op = 'search', $keys = NULL) {
+  switch ($op) {
+    case 'name':
+      return t('DigitalNZ');
+
+    case 'search':
+      // Build matching conditions
+
+      // c/- apache_solr
+      $page = isset($_GET['page']) ? $_GET['page'] : 0;
+      $rows = variable_get('digitalnz_search_rows', 10);
+      $start = $page * $rows;
+
+      if (isset($_GET['sort'])) {
+        $sort = check_plain($_GET['sort']);
+      }
+
+      // @todo: This seems a bit ugly.
+      if (isset($_GET['direction'])) {
+        $direction = check_plain($_GET['direction']);
+        $xml = digitalnz_api_do_search($keys, $start, $rows, $sort, $direction);
+      }
+      else {
+        $xml = digitalnz_api_do_search($keys, $start, $rows, $sort);
+      }
+
+      // Load results.
+      pager_query("SELECT %d", $rows, 0, NULL, $xml->{'result-count'});
+      // Cache response and set semaphore for use by blocks.
+      digitalnz_static_response_cache($xml);
+      digitalnz_has_searched(TRUE);
+
+      $results = array();
+      if ($xml->{'result-count'} > 0) {
+        foreach ($xml->results->result as $result) {
+          $category = $result->category;
+          $content_provider = $result->{'content-provider'};
+          // Need to convert date from 2009-08-12T02:10:49.344Z to timestamp
+          $raw_date = (string)$result->date;
+          $date = $raw_date ? digitalnz_api_convert_date($raw_date) : '';
+
+          $description = check_plain($result->description);
+
+          $display_url = $result->{'display-url'};
+          $id = $result->id;
+          $metadata_url = $result->{'metadata-url'};
+          $source_url = $result->{'source-url'};
+          $thumbnail_url = $result->{'thumbnail-url'};
+          $title = $result->title;
+
+          $extra = array(
+            'provider' => check_plain($content_provider),
+            'id' => 'id:'. check_plain($id),
+            'thumbnail_url' => $thumbnail_url,
+         //   'raw_date' => $raw_date,
+          );
+
+          // Show thumbnail
+          // @todo - sanitise thumbnail URL?
+          if ($category == 'Images') {
+            $description .= '<br/><img src="'. $thumbnail_url .'" alt="'. check_plain($title) .'"/>';
+          }
+
+          $results[] = array(
+            'link' => url($source_url, array('absolute' => TRUE)),
+            'type' => check_plain($category),
+            'title' => check_plain($title),
+           // 'user' => theme('username', $node),
+            'date' => check_plain($date),
+            'node' => $result,
+            'extra' => $extra,
+          //  'score' => $item->score / $total,
+            'snippet' => $description,
+          );
+        }
+      }
+
+      return $results;
+  }
+}
+
+/**
+ * Override search_results to introduce DigitalNZ logo, per Digital NZ terms.
+ * Implementation of hook_search_page().
+ */
+function digitalnz_search_search_page($results) {
+  $output = '<dl class="search-results digitalnz_search-results">';
+
+  foreach ($results as $result) {
+    $output .= theme('search_result', $result, 'digitalnz_search');
+  }
+  $output .= '</dl>';
+  $output .= theme('pager', NULL, variable_get('digitalnz_search_rows', 10), 0);
+
+  $output .= '<a href="http://digitalnz.org/"><img src="/'. drupal_get_path('module', 'digitalnz_search') .'/DNZ_Logo.jpg" alt="Powered by DigitalNZ"/></a>';
+
+  return $output;
+}
