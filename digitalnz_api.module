@@ -1,5 +1,5 @@
 <?php
-// $Id: digitalnz_api.module,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+// $Id: digitalnz_api.module,v 1.2 2009/09/26 22:44:59 jonathanhunt Exp $
 /**
  * @file
  * Wrapper for the DigitalNZ API http://digitalnz.org
@@ -51,7 +51,7 @@ function digitalnz_api_do_search($search_text, $start = 0, $rows = 10, $sort = N
     return;
   }
 
-  $url = $endpoint .'.'. $response_format .'/?api_key='. $key .'&start='. $start .'&num_results='. $rows .'&search_text='. urlencode($search_text);
+  $url = $endpoint .'.'. $response_format .'?api_key='. $key .'&start='. $start .'&num_results='. $rows .'&search_text='. urlencode($search_text);
 
   if (!empty($sort)) {
     $url .= '&sort='. $sort;
