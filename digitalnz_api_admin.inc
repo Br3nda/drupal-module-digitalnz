@@ -1,5 +1,5 @@
 <?php
-// $Id: digitalnz_api_admin.inc,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+// $Id: digitalnz_api_admin.inc,v 1.2 2009/10/11 09:28:02 jonathanhunt Exp $
 /**
  * @file
  * Form builder for DigitalNZ API settings.
@@ -19,12 +19,11 @@ function digitalnz_api_admin_settings() {
   );
 
   $form['digitalnz_api_key'] = array(
-    '#type' => 'textfield',
+    '#type' => 'password',
     '#title' => t('DigitalNZ API Key'),
     '#description' => t('Confidential DigitalNZ API Key. Refer <a href="@api_key_url">@api_key_url</a>', array(
       '@api_key_url' => url(DIGITALNZ_API_KEY_URL),
     )),
-    '#default_value' => variable_get('digitalnz_api_key', ''),
     '#required' => TRUE,
   );
 

@@ -1,5 +1,5 @@
 <?php
-// $Id: digitalnz_search.module,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+// $Id: digitalnz_search.module,v 1.2 2009/10/11 09:28:02 jonathanhunt Exp $
 /**
  * @file
  * Offer search function via the DigitalNZ API http://digitalnz.org
@@ -18,7 +18,7 @@
  */
 
 /**
- * Define callback for settings.
+ * Define callback for settings (number of results per page).
  * Implementation of hook_menu().
  */
 function digitalnz_search_menu() {
@@ -142,7 +142,7 @@ function digitalnz_search_block($op = 'list', $delta = 0, $edit = array()) {
 
 
 /**
- * Show DigitalNZ as search option.
+ * Show DigitalNZ as search option and return results from API when DigitalNZ search is invoked.
  * Implementation of hook_search().
  */
 function digitalnz_search_search($op = 'search', $keys = NULL) {
@@ -157,6 +157,7 @@ function digitalnz_search_search($op = 'search', $keys = NULL) {
       $page = isset($_GET['page']) ? $_GET['page'] : 0;
       $rows = variable_get('digitalnz_search_rows', 10);
       $start = $page * $rows;
+      $sort = '';
 
       if (isset($_GET['sort'])) {
         $sort = check_plain($_GET['sort']);
@@ -180,44 +181,38 @@ function digitalnz_search_search($op = 'search', $keys = NULL) {
       $results = array();
       if ($xml->{'result-count'} > 0) {
         foreach ($xml->results->result as $result) {
-          $category = $result->category;
-          $content_provider = $result->{'content-provider'};
           // Need to convert date from 2009-08-12T02:10:49.344Z to timestamp
           $raw_date = (string)$result->date;
           $date = $raw_date ? digitalnz_api_convert_date($raw_date) : '';
 
-          $description = check_plain($result->description);
-
           $display_url = $result->{'display-url'};
-          $id = $result->id;
           $metadata_url = $result->{'metadata-url'};
-          $source_url = $result->{'source-url'};
-          $thumbnail_url = $result->{'thumbnail-url'};
-          $title = $result->title;
 
           $extra = array(
-            'provider' => check_plain($content_provider),
-            'id' => 'id:'. check_plain($id),
-            'thumbnail_url' => $thumbnail_url,
+            'provider' => check_plain($result->{'content_provider'}),
+            'id' => 'id:'. check_plain($result->id),
+            'thumbnail_url' => check_url($result->{'thumbnail-url'}),
          //   'raw_date' => $raw_date,
           );
 
-          // Show thumbnail
-          // @todo - sanitise thumbnail URL?
-          if ($category == 'Images') {
-            $description .= '<br/><img src="'. $thumbnail_url .'" alt="'. check_plain($title) .'"/>';
+          // Show thumbnail. @todo: make a setting to toggle display.
+          if (!empty($result->{'thumbnail-url'})) {
+            $thumbnail = '<br/><a href="'. check_url($result->{'source-url'}) .'"><img src="'. check_url($result->{'thumbnail-url'}) .'" alt="'. check_plain($result->title) .'"/></a>';
+          }
+          else {
+            $thumbnail = '';
           }
 
           $results[] = array(
-            'link' => url($source_url, array('absolute' => TRUE)),
-            'type' => check_plain($category),
-            'title' => check_plain($title),
+            'link' => check_url($result->{'source-url'}),
+            'type' => check_plain($result->category),
+            'title' => check_plain($result->title),
            // 'user' => theme('username', $node),
             'date' => check_plain($date),
             'node' => $result,
             'extra' => $extra,
           //  'score' => $item->score / $total,
-            'snippet' => $description,
+            'snippet' => check_markup($result->description) . $thumbnail,
           );
         }
       }
