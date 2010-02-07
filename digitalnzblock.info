@@ -1,0 +1,7 @@
+; $Id: digitalnzblock.info,v 1.1 2010/02/07 03:53:02 jonathanhunt Exp $
+name = DigitalNZ Block
+description = Show DigitalNZ metadata search results in block.
+package = Search
+dependencies[] = search
+dependencies[] = digitalnzapi
+core = 6.x
