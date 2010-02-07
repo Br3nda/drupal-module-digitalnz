@@ -1,4 +1,4 @@
-; $Id: digitalnz_api.info,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+; $Id: digitalnzapi.info,v 1.1 2010/02/07 03:48:43 jonathanhunt Exp $
 name = DigitalNZ API
 description = API wrapper for DigitalNZ API http://digitalnz.org.
 package = Search

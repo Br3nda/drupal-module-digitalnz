@@ -1,5 +1,5 @@
 <?php
-// $Id: digitalnz_api.install,v 1.1 2009/09/26 21:46:40 jonathanhunt Exp $
+// $Id: digitalnzapi.install,v 1.1 2010/02/07 03:48:43 jonathanhunt Exp $
 /**
  * @file
  * Uninstall variables used by DigitalNZ API module.
@@ -8,7 +8,7 @@
 /**
  * Implementation of hook_uninstall().
  */
-function digitalnz_api_uninstall() {
+function digitalnzapi_uninstall() {
   variable_del('digitalnz_api_url');
   variable_del('digitalnz_api_key');
 }
